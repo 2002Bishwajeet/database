@@ -74,6 +74,17 @@ services:
     cap_add:
       - SYS_NICE
 
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: utopia-mssql
+    ports:
+      - "8707:1433"
+    networks:
+      - database
+    environment:
+      ACCEPT_EULA: Y
+      MSSQL_SA_PASSWORD: password
+
   redis:
     image: redis:6.0-alpine
     container_name: utopia-redis
