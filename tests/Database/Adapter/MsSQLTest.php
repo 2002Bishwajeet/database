@@ -50,7 +50,7 @@ class MsSQLTest extends Base
         $dbUser = 'admin';
         $dbPass = 'admin';
 
-        $pdo = new PDO("mssql:host={$dbHost};port={$dbPort};charset=utf8mb4", $dbUser, $dbPass, MsSql::getPDOAttributes());
+        $pdo = new PDO("sqlsrv:Server={$dbHost};port={$dbPort};charset=utf8mb4", $dbUser, $dbPass, MsSql::getPDOAttributes());
 
         $redis = new Redis();
         $redis->connect('redis', 6379);

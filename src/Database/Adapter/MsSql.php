@@ -702,7 +702,7 @@ class MsSql extends SQL
      * @throws Exception
      * @throws PDOException
      */
-    public function find(string $collection, array $queries = [], int $limit = 25, int $offset = 0, array $orderAttributes = [], array $orderTypes = [], array $cursor = [], string $cursorDirection = Database::CURSOR_AFTER, ?int $timeout = null): array
+    public function find(string $collection, array $queries = [], ?int $limit = 25, ?int $offset = 0, array $orderAttributes = [], array $orderTypes = [], array $cursor = [], string $cursorDirection = Database::CURSOR_AFTER, ?int $timeout = null): array
     {
         $name = $this->filter($collection);
         $roles = Authorization::getRoles();
@@ -877,7 +877,7 @@ class MsSql extends SQL
      * @throws Exception
      * @throws PDOException
      */
-    public function count(string $collection, array $queries = [], int $max = 0): int
+    public function count(string $collection, array $queries = [], ?int $max = 0): int
     {
         $name = $this->filter($collection);
         $roles = Authorization::getRoles();
@@ -929,7 +929,7 @@ class MsSql extends SQL
      * @throws Exception
      * @throws PDOException
      */
-    public function sum(string $collection, string $attribute, array $queries = [], int $max = 0): int|float
+    public function sum(string $collection, string $attribute, array $queries = [], ?int $max = 0): int|float
     {
         $name = $this->filter($collection);
         $roles = Authorization::getRoles();
