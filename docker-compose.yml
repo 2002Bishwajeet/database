@@ -83,7 +83,7 @@ services:
       - database
     environment:
       ACCEPT_EULA: Y
-      MSSQL_SA_PASSWORD: password
+      MSSQL_SA_PASSWORD: P@ssw0rd
 
   redis:
     image: redis:6.0-alpine
