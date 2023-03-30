@@ -9,21 +9,32 @@ COPY composer.lock /usr/local/src/
 COPY composer.json /usr/local/src/
 
 RUN composer install --ignore-platform-reqs --optimize-autoloader \
-    --no-plugins --no-scripts --prefer-dist
-    
+  --no-plugins --no-scripts --prefer-dist
+
 FROM php:8.0-cli-alpine as compile
 
 ENV PHP_REDIS_VERSION=5.3.4 \
-    PHP_SWOOLE_VERSION=v4.8.0 \
-    PHP_MONGO_VERSION=1.11.1
-    
+  PHP_SWOOLE_VERSION=v4.8.0 \
+  PHP_MONGO_VERSION=1.11.1
+
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 RUN \
   apk update \
-  && apk add --no-cache postgresql-libs postgresql-dev make automake autoconf gcc g++ git brotli-dev \
+  && apk add --no-cache postgresql-libs postgresql-dev make automake autoconf gcc g++ git brotli-dev curl gnupg unixodbc-dev  \
   && docker-php-ext-install opcache pgsql pdo_mysql pdo_pgsql \
   && rm -rf /var/cache/apk/*
+
+#Download the desired package(s)
+RUN curl -O https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/msodbcsql17_17.10.2.1-1_amd64.apk
+RUN curl -O https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/mssql-tools_17.10.1.1-1_amd64.apk
+
+#Install the package(s)
+RUN apk add --allow-untrusted msodbcsql17_17.10.2.1-1_amd64.apk
+RUN apk add --allow-untrusted mssql-tools_17.10.1.1-1_amd64.apk
+
+# install SQL Server PHP connector module 
+RUN pecl install sqlsrv pdo_sqlsrv
 
 # Redis Extension
 FROM compile AS redis
@@ -56,11 +67,11 @@ RUN \
 ## PCOV Extension
 FROM compile AS pcov
 RUN \
-   git clone https://github.com/krakjoe/pcov.git \
-   && cd pcov \
-   && phpize \
-   && ./configure --enable-pcov \
-   && make && make install
+  git clone https://github.com/krakjoe/pcov.git \
+  && cd pcov \
+  && phpize \
+  && ./configure --enable-pcov \
+  && make && make install
 
 FROM compile as final
 
@@ -72,6 +83,8 @@ RUN echo extension=redis.so >> /usr/local/etc/php/conf.d/redis.ini
 RUN echo extension=swoole.so >> /usr/local/etc/php/conf.d/swoole.ini
 RUN echo extension=mongodb.so >> /usr/local/etc/php/conf.d/mongodb.ini
 RUN echo extension=pcov.so >> /usr/local/etc/php/conf.d/pcov.ini
+RUN echo extension=sqlsrv.so >> /usr/local/etc/php/conf.d/sqlsrv.ini
+RUN echo extension=pdo_sqlsrv.so >> /usr/local/etc/php/conf.d/pdo-sqlsrv.ini
 
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
