@@ -21,6 +21,7 @@ use Utopia\Database\Database;
 use Utopia\Database\Document;
 use Utopia\Database\Adapter\Mongo;
 use Utopia\Database\Adapter\MariaDB;
+use Utopia\Database\Adapter\MsSql;
 use Utopia\Validator\Numeric;
 use Utopia\Validator\Text;
 
@@ -34,7 +35,7 @@ $cli
     ->desc('Load database with mock data for testing')
     ->param('adapter', '', new Text(0), 'Database adapter', false)
     ->param('limit', '', new Numeric(), 'Total number of records to add to database', false)
-    ->param('name', 'myapp_'.uniqid(), new Text(0), 'Name of created database.', true)
+    ->param('name', 'myapp_' . uniqid(), new Text(0), 'Name of created database.', true)
     ->action(function ($adapter, $limit, $name) {
         $start = null;
         $namespace = '_ns';
@@ -83,7 +84,7 @@ $cli
                     );
 
                     // A coroutine is assigned per 1000 documents
-                    for ($i=0; $i < $limit/1000; $i++) {
+                    for ($i = 0; $i < $limit / 1000; $i++) {
                         go(function () use ($pool, $faker, $name, $cache, $namespace) {
                             $pdo = $pool->get();
 
@@ -92,7 +93,7 @@ $cli
                             $database->setNamespace($namespace);
 
                             // Each coroutine loads 1000 documents
-                            for ($i=0; $i < 1000; $i++) {
+                            for ($i = 0; $i < 1000; $i++) {
                                 addArticle($database, $faker);
                             }
 
@@ -144,7 +145,7 @@ $cli
                     );
 
                     // A coroutine is assigned per 1000 documents
-                    for ($i=0; $i < $limit/1000; $i++) {
+                    for ($i = 0; $i < $limit / 1000; $i++) {
                         go(function () use ($pool, $faker, $name, $cache, $namespace) {
                             $pdo = $pool->get();
 
@@ -153,7 +154,7 @@ $cli
                             $database->setNamespace($namespace);
 
                             // Each coroutine loads 1000 documents
-                            for ($i=0; $i < 1000; $i++) {
+                            for ($i = 0; $i < 1000; $i++) {
                                 addArticle($database, $faker);
                             }
 
@@ -188,14 +189,14 @@ $cli
 
                     $start = microtime(true);
 
-                    for ($i=0; $i < $limit/1000; $i++) {
+                    for ($i = 0; $i < $limit / 1000; $i++) {
                         go(function () use ($client, $faker, $name, $namespace, $cache) {
                             $database = new Database(new Mongo($client), $cache);
                             $database->setDefaultDatabase($name);
                             $database->setNamespace($namespace);
 
                             // Each coroutine loads 1000 documents
-                            for ($i=0; $i < 1000; $i++) {
+                            for ($i = 0; $i < 1000; $i++) {
                                 addArticle($database, $faker);
                             }
 
@@ -203,6 +204,67 @@ $cli
                         });
                     }
                 });
+                break;
+
+            case 'mssql':
+                Co\run(function () use (&$start, $limit, $name, $namespace, $cache) {
+                    // can't use PDO pool to act above the database level e.g. creating schemas
+                    $dbHost = 'mssql';
+                    $dbPort = '1433';
+                    $dbUser = 'SA';
+                    $dbPass = 'P@ssw0rd';
+
+                    $pdo = new PDO("sqlsrv:Server={$dbHost},{$dbPort}", $dbUser, $dbPass, MsSql::getPDOAttributes());
+
+                    $database = new Database(new MsSql($pdo), $cache);
+                    $database->setDefaultDatabase($name);
+                    $database->setNamespace($namespace);
+
+                    // Outline collection schema
+                    createSchema($database);
+
+                    // reclaim resources
+                    $database = null;
+                    $pdo = null;
+
+                    // Init Faker
+                    $faker = Factory::create();
+
+                    $start = microtime(true);
+
+                    // create PDO pool for coroutines
+                    $pool = new PDOPool(
+                        (new PDOConfig())
+                            ->withHost('mssql')
+                            ->withPort(1433)
+                            // ->withUnixSocket('/tmp/mysql.sock')
+                            ->withDbName($name)
+                            ->withUsername('SA')
+                            ->withPassword('P@ssw0rd'),
+                        128
+                    );
+
+                    // A coroutine is assigned per 1000 documents
+                    for ($i = 0; $i < $limit / 1000; $i++) {
+                        go(function () use ($pool, $faker, $name, $cache, $namespace) {
+                            $pdo = $pool->get();
+
+                            $database = new Database(new MsSql($pdo), $cache);
+                            $database->setDefaultDatabase($name);
+                            $database->setNamespace($namespace);
+
+                            // Each coroutine loads 1000 documents
+                            for ($i = 0; $i < 1000; $i++) {
+                                addArticle($database, $faker);
+                            }
+
+                            // Reclaim resources
+                            $pool->put($pdo);
+                            $database = null;
+                        });
+                    }
+                });
+
                 break;
 
             default:
