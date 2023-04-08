@@ -223,31 +223,16 @@ $cli
                     // Outline collection schema
                     createSchema($database);
 
-                    // reclaim resources
-                    $database = null;
-                    $pdo = null;
-
+                 
                     // Init Faker
                     $faker = Factory::create();
 
                     $start = microtime(true);
 
-                    // create PDO pool for coroutines
-                    $pool = new PDOPool(
-                        (new PDOConfig())
-                            ->withHost('mssql')
-                            ->withPort(1433)
-                            // ->withUnixSocket('/tmp/mysql.sock')
-                            ->withDbName($name)
-                            ->withUsername('SA')
-                            ->withPassword('P@ssw0rd'),
-                        128
-                    );
 
                     // A coroutine is assigned per 1000 documents
                     for ($i = 0; $i < $limit / 1000; $i++) {
-                        go(function () use ($pool, $faker, $name, $cache, $namespace) {
-                            $pdo = $pool->get();
+                        go(function () use ($pdo, $faker, $name, $cache, $namespace) {
 
                             $database = new Database(new MsSql($pdo), $cache);
                             $database->setDefaultDatabase($name);
@@ -257,9 +242,6 @@ $cli
                             for ($i = 0; $i < 1000; $i++) {
                                 addArticle($database, $faker);
                             }
-
-                            // Reclaim resources
-                            $pool->put($pdo);
                             $database = null;
                         });
                     }
