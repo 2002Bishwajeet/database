@@ -14,6 +14,34 @@ use Utopia\Database\Validator\Authorization;
 
 class MsSql extends SQL
 {
+
+    /**
+     * Get SQL schema
+     *
+     * @return string
+     */
+    protected function getSQLSchema(): string
+    {
+        if (!$this->getSupportForSchemas()) {
+            return '';
+        }
+
+        return "{$this->getDefaultDatabase()}.";
+    }
+
+
+    /**
+     * Get SQL table
+     *
+     * @param string $name
+     * @return string
+     */
+    protected function getSQLTable(string $name): string
+    {
+        return "{$this->getSQLSchema()}dbo.{$this->getNamespace()}{$name}";
+    }
+
+
     /**
      * Create Database
      *
@@ -27,7 +55,7 @@ class MsSql extends SQL
         $name = $this->filter($name);
 
         return $this->getPDO()
-            ->prepare("CREATE DATABASE IF NOT EXISTS `{$name}` /*!40100 DEFAULT CHARACTER SET utf8mb4 */;")
+            ->prepare("CREATE DATABASE $name;")
             ->execute();
     }
 
@@ -44,13 +72,13 @@ class MsSql extends SQL
         $name = $this->filter($name);
 
         return $this->getPDO()
-            ->prepare("DROP DATABASE `{$name}`;")
+            ->prepare("DROP DATABASE $name;")
             ->execute();
     }
 
     /**
      * Create Collection
-     *
+     * 
      * @param string $name
      * @param array<Document> $attributes
      * @param array<Document> $indexes
@@ -75,10 +103,10 @@ class MsSql extends SQL
             $attrType = $this->getSQLType($attribute->getAttribute('type'), $attribute->getAttribute('size', 0), $attribute->getAttribute('signed', true));
 
             if ($attribute->getAttribute('array')) {
-                $attrType = 'LONGTEXT';
+                $attrType = 'TEXT';
             }
 
-            $attributeStrings[$key] = "`{$attrId}` {$attrType}, ";
+            $attributeStrings[$key] = "{$attrId} {$attrType}, ";
         }
 
         foreach ($indexes as $key => $index) {
@@ -96,38 +124,41 @@ class MsSql extends SQL
                     $indexOrder = '';
                 }
 
-                $indexAttributes[$nested] = "`{$indexAttribute}`{$indexLength} {$indexOrder}";
+                $indexAttributes[$nested] = "{$indexAttribute}{$indexLength} {$indexOrder}";
             }
 
-            $indexStrings[$key] = "{$indexType} `{$indexId}` (" . \implode(", ", $indexAttributes) . " ),";
+            $indexStrings[$key] = "{$indexType} {$indexId} (" . \implode(", ", $indexAttributes) . " ),";
         }
 
         try {
             $this->getPDO()
-                ->prepare("CREATE TABLE IF NOT EXISTS `{$database}`.`{$namespace}_{$id}` (
-                        `_id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-                        `_uid` CHAR(255) NOT NULL,
-                        `_createdAt` datetime(3) DEFAULT NULL,
-                        `_updatedAt` datetime(3) DEFAULT NULL,
-                        `_permissions` MEDIUMTEXT DEFAULT NULL,
+                ->prepare("CREATE TABLE $database.dbo.{$namespace}{$id} (
+                        _id int NOT NULL IDENTITY(1,1),  -- Does not Support Unsigned and AUTO_INCREMENT
+                        _uid CHAR(255) NOT NULL,
+                        _createdAt datetime DEFAULT NULL,
+                        _updatedAt datetime DEFAULT NULL,
                         " . \implode(' ', $attributeStrings) . "
-                        PRIMARY KEY (`_id`),
-                        " . \implode(' ', $indexStrings) . "
-                        UNIQUE KEY `_uid` (`_uid`),
-                        KEY `_created_at` (`_createdAt`),
-                        KEY `_updated_at` (`_updatedAt`)
+                        _permissions TEXT DEFAULT NULL
                     )")
+                /* 
+                        " . \implode(' ', $attributeStrings) . "
+                        PRIMARY KEY (_id),
+                        " . \implode(' ', $indexStrings) . "
+                        UNIQUE KEY _uid (_uid),
+                     KEY _created_at (_createdAt), Could not create this now
+                        KEY _updated_at (_updatedAt)
+                    */
                 ->execute();
 
             $this->getPDO()
-                ->prepare("CREATE TABLE IF NOT EXISTS `{$database}`.`{$namespace}_{$id}_perms` (
-                        `_id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-                        `_type` VARCHAR(12) NOT NULL,
-                        `_permission` VARCHAR(255) NOT NULL,
-                        `_document` VARCHAR(255) NOT NULL,
-                        PRIMARY KEY (`_id`),
-                        UNIQUE INDEX `_index1` (`_document`,`_type`,`_permission`),
-                        INDEX `_permission` (`_permission`)
+                ->prepare("CREATE TABLE {$database}.dbo.{$namespace}{$id}_perms (
+                        _id int NOT NULL IDENTITY(1,1), --unsigned not supported
+                        _type VARCHAR(12) NOT NULL,
+                        _permission VARCHAR(255) NOT NULL,
+                        _document VARCHAR(255) NOT NULL,
+                      /*   PRIMARY KEY (_id),
+                        UNIQUE INDEX _index1 (_document,_type,_permission),
+                        INDEX _permission (_permission) */
                     )")
                 ->execute();
         } catch (\Exception $th) {
@@ -177,12 +208,12 @@ class MsSql extends SQL
         $type = $this->getSQLType($type, $size, $signed);
 
         if ($array) {
-            $type = 'LONGTEXT';
+            $type = 'TEXT';
         }
 
         return $this->getPDO()
             ->prepare("ALTER TABLE {$this->getSQLTable($name)}
-                ADD COLUMN `{$id}` {$type};")
+                ADD {$id} {$type};")
             ->execute();
     }
 
@@ -227,7 +258,7 @@ class MsSql extends SQL
         $type = $this->getSQLType($type, $size, $signed);
 
         if ($array) {
-            $type = 'LONGTEXT';
+            $type = 'TEXT';
         }
 
         return $this->getPDO()
@@ -303,18 +334,18 @@ class MsSql extends SQL
             default => $attribute
         }, $attributes);
 
-        foreach ($attributes as $key => $attribute) {
+        foreach ($attributes as $key => $attribute)
             $length = $lengths[$key] ?? '';
-            $length = (empty($length)) ? '' : '(' . (int)$length . ')';
-            $order = $orders[$key] ?? '';
-            $attribute = $this->filter($attribute);
+        $length = (empty($length)) ? '' : '(' . (int)$length . ')';
+        $order = $orders[$key] ?? '';
+        $attribute = $this->filter($attribute);
 
-            if (Database::INDEX_FULLTEXT === $type) {
-                $order = '';
-            }
 
-            $attributes[$key] = "`{$attribute}`{$length} {$order}";
-        }
+
+
+        $attributes[$key] = "{$attribute} {$length} {$order}";
+
+        \var_dump($this->getSQLIndex($name, $id, $type, $attributes));
 
         return $this->getPDO()
             ->prepare($this->getSQLIndex($name, $id, $type, $attributes))
@@ -371,7 +402,7 @@ class MsSql extends SQL
         foreach ($attributes as $attribute => $value) { // Parse statement
             $column = $this->filter($attribute);
             $bindKey = 'key_' . $bindIndex;
-            $columns .= "`{$column}`, ";
+            $columns .= "{$column}, ";
             $columnNames .= ':' . $bindKey . ', ';
             $bindIndex++;
         }
@@ -433,6 +464,51 @@ class MsSql extends SQL
         }
 
         return $document;
+    }
+
+    /**
+     * Get Document
+     *
+     * @param string $collection
+     * @param string $id
+     * @param Query[] $queries
+     * @return Document
+     * @throws Exception
+     */
+    public function getDocument(string $collection, string $id, array $queries = []): Document
+    {
+        $name = $this->filter($collection);
+
+        $selections = $this->getAttributeSelections($queries);
+
+        $stmt = $this->getPDO()->prepare("
+            SELECT {$this->getAttributeProjection($selections)} 
+            FROM {$this->getSQLTable($name)}
+            WHERE _uid = :_uid;
+        ");
+
+        $stmt->bindValue(':_uid', $id);
+        $stmt->execute();
+
+        $document = $stmt->fetch();
+
+        if (empty($document)) {
+            return new Document([]);
+        }
+
+        $document['$id'] = $document['_uid'];
+        $document['$internalId'] = $document['_id'];
+        $document['$createdAt'] = $document['_createdAt'];
+        $document['$updatedAt'] = $document['_updatedAt'];
+        $document['$permissions'] = json_decode($document['_permissions'] ?? '[]', true);
+
+        unset($document['_id']);
+        unset($document['_uid']);
+        unset($document['_createdAt']);
+        unset($document['_updatedAt']);
+        unset($document['_permissions']);
+
+        return new Document($document);
     }
 
     /**
@@ -571,15 +647,15 @@ class MsSql extends SQL
         foreach ($attributes as $attribute => $value) {
             $column = $this->filter($attribute);
             $bindKey = 'key_' . $bindIndex;
-            $columns .= "`{$column}`" . '=:' . $bindKey . ',';
+            $columns .= "{$column}" . '=:' . $bindKey . ',';
             $bindIndex++;
         }
 
         $stmt = $this->getPDO()
             ->prepare("UPDATE {$this->getSQLTable($name)}
-                SET {$columns} _uid = :_uid WHERE _uid = :_uid");
-
+                SET {$columns} _uid = :_uuid  WHERE _uid = :_uid"); // Bindvalue must be unique
         $stmt->bindValue(':_uid', $document->getId());
+        $stmt->bindValue(':_uuid', $document->getId());
 
         $attributeIndex = 0;
         foreach ($attributes as $attribute => $value) {
@@ -590,11 +666,14 @@ class MsSql extends SQL
             $bindKey = 'key_' . $attributeIndex;
             $attribute = $this->filter($attribute);
             $value = (is_bool($value)) ? (int)$value : $value;
+
             $stmt->bindValue(':' . $bindKey, $value, $this->getPDOType($value));
             $attributeIndex++;
         }
 
+
         try {
+
             $stmt->execute();
             if (isset($stmtRemovePermissions)) {
                 $stmtRemovePermissions->execute();
@@ -748,7 +827,7 @@ class MsSql extends SQL
                 $orderType = $orderType === Database::ORDER_ASC ? Database::ORDER_DESC : Database::ORDER_ASC;
             }
 
-            $orders[] = "`${attribute}` ${orderType}";
+            $orders[] = "$attribute $orderType";
         }
 
         // Allow after pagination without any order
@@ -1068,13 +1147,13 @@ class MsSql extends SQL
         switch ($type) {
             case Database::VAR_STRING:
                 // $size = $size * 4; // Convert utf8mb4 size to bytes
-                if ($size > 16777215) {
+                /*   if ($size > 16777215) {
                     return 'LONGTEXT';
                 }
 
                 if ($size > 65535) {
                     return 'MEDIUMTEXT';
-                }
+                } */
 
                 if ($size > 16383) {
                     return 'TEXT';
@@ -1082,8 +1161,8 @@ class MsSql extends SQL
 
                 return "VARCHAR({$size})";
 
-            case Database::VAR_INTEGER:  // We don't support zerofill: https://stackoverflow.com/a/5634147/2299554
-                $signed = ($signed) ? '' : ' UNSIGNED';
+            case Database::VAR_INTEGER:
+                $signed = ($signed) ? '' : ' IDENTITY(-2147483648, 1)';
 
                 if ($size >= 8) { // INT = 4 bytes, BIGINT = 8 bytes
                     return 'BIGINT' . $signed;
@@ -1092,17 +1171,17 @@ class MsSql extends SQL
                 return 'INT' . $signed;
 
             case Database::VAR_FLOAT:
-                $signed = ($signed) ? '' : ' UNSIGNED';
+                $signed = ($signed) ? '' : ' IDENTITY(-2147483648, 1)';
                 return 'DOUBLE' . $signed;
 
             case Database::VAR_BOOLEAN:
-                return 'TINYINT(1)';
+                return 'TINYINT';
 
             case Database::VAR_DOCUMENT:
                 return 'CHAR(255)';
 
             case Database::VAR_DATETIME:
-                return 'DATETIME(3)';
+                return 'DATETIME';
 
             default:
                 throw new Exception('Unknown Type');
@@ -1128,7 +1207,7 @@ class MsSql extends SQL
             default => throw new Exception('Unknown Index Type:' . $type),
         };
 
-        return "CREATE {$type} `{$id}` ON {$this->getSQLTable($collection)} ( " . implode(', ', $attributes) . " )";
+        return "CREATE {$type} {$id} ON {$this->getSQLTable($collection)} ( " . implode(', ', $attributes) . " ) WITH (catalog_name = 'default');";
     }
 
     /**
@@ -1201,5 +1280,21 @@ class MsSql extends SQL
         }
 
         throw $e;
+    }
+
+    /**
+     * Returns default PDO configuration
+     *
+     * @return array<int, mixed>
+     */
+
+    public static function getPDOAttributes(): array
+    {
+        return [
+            PDO::SQLSRV_ATTR_QUERY_TIMEOUT => 3, // Specifies the timeout duration in seconds. Takes a value of type int.
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, // Fetch a result row as an associative array.
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, // PDO will throw a PDOException on srrors
+            PDO::ATTR_STRINGIFY_FETCHES => true // Returns all fetched data as Strings
+        ];
     }
 }
