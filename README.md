@@ -154,6 +154,7 @@ Below is a list of supported adapters, and their compatibly tested versions alon
 | Postgres | 🛠 | 13.0 |
 | MongoDB | ✅ | 5.0 |
 | SQLlite | ✅ | 3.38 |
+| SQL Server | 🛠 | 2022 |
 
 ` ✅  - supported, 🛠  - work in progress`
 
