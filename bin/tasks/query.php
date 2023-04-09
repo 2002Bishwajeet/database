@@ -18,6 +18,7 @@ use Utopia\Database\Adapter\MariaDB;
 use Utopia\Database\Validator\Authorization;
 use Utopia\Validator\Numeric;
 use Utopia\Validator\Text;
+use Utopia\Database\Adapter\MsSql;
 
 /**
  * @Example
@@ -74,6 +75,19 @@ $cli
                 $database->setDefaultDatabase($name);
                 $database->setNamespace($namespace);
                 break;
+
+        case 'mssql':
+            $dbHost = 'mssql';
+            $dbPort = '1433';
+            $dbUser = 'SA';
+            $dbPass = 'P@ssw0rd';
+
+            $pdo = new PDO("sqlsrv:Server={$dbHost},{$dbPort}", $dbUser, $dbPass, MsSql::getPDOAttributes());
+
+            $database = new Database(new MsSql($pdo), $cache);
+            $database->setDefaultDatabase($name);
+            $database->setNamespace($namespace);
+            break;
 
             default:
                 Console::error('Adapter not supported');

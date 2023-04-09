@@ -15,6 +15,7 @@ use Utopia\Database\Database;
 use Utopia\Database\Adapter\Mongo;
 use Utopia\Database\Adapter\MariaDB;
 use Utopia\Validator\Text;
+use Utopia\Database\Adapter\MsSql;
 
 /**
  * @Example
@@ -65,6 +66,17 @@ $cli
 
                 $database = new Database(new MySQL($pdo), $cache);
                 break;
+
+            case 'mssql':
+         
+            $dbHost = 'mssql';
+            $dbPort = '1433';
+            $dbUser = 'SA';
+            $dbPass = 'P@ssw0rd';
+
+            $pdo = new PDO("sqlsrv:Server={$dbHost},{$dbPort}", $dbUser, $dbPass, MsSql::getPDOAttributes());
+
+            $database = new Database(new MsSql($pdo), $cache);
 
             default:
                 Console::error('Adapter not supported');
